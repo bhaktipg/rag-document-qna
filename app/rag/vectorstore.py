@@ -70,25 +70,58 @@ def add_documents(chunks: List[Document]) -> None:
     logger.debug("Added %d documents to collection %s", len(chunks), source)
 
 
-def similarity_search(query: str, k: int = 4) -> List[Document]:
-    """Search across all collections for the *k* most similar documents.
+def similarity_search(query: str, k: int = 4, collection_names: List[str] = None) -> List[Document]:
+    """Search across specified (or all) collections for the *k* most similar documents.
 
-    The function iterates over every collection, runs a query, and aggregates the
-    results into a flat list of ``Document`` objects. Metadata includes the
-    originating collection name.
+    The function iterates over collections, runs a query, and aggregates the
+    results into a flat list of ``Document`` objects. Metadata is preserved.
     """
     logger.info("Performing similarity search for query: %s (k=%d)", query, k)
     results: List[Document] = []
-    for coll in _client.list_collections():
+    
+    # If no collections specified, search all
+    if not collection_names:
+        collections_to_search = _client.list_collections()
+    else:
+        collections_to_search = []
+        for name in collection_names:
+            try:
+                # Need to sanitize name to match how it is stored
+                sanitized = _sanitize_name(name)
+                coll = _client.get_collection(name=sanitized)
+                collections_to_search.append(coll)
+            except Exception as e:
+                logger.warning("Could not find collection %s: %s", name, e)
+
+    results_with_dist = []
+    for coll in collections_to_search:
         logger.debug("Querying collection %s", coll.name)
-        response = coll.query(
-            query_texts=[query],
-            n_results=k,
-        )
-        for text in response.get("documents", [[]])[0]:
-            results.append(Document(page_content=text, metadata={"collection": coll.name}))
-    logger.info("Similarity search returned %d documents", len(results))
-    return results
+        try:
+            count = coll.count()
+            if count == 0:
+                continue
+            response = coll.query(
+                query_texts=[query],
+                n_results=min(k, count),
+            )
+            if response and response.get("documents") and response["documents"][0]:
+                docs = response["documents"][0]
+                metas = response["metadatas"][0] if response.get("metadatas") else [{}] * len(docs)
+                dists = response["distances"][0] if response.get("distances") else [0.0] * len(docs)
+                for doc_text, meta, dist in zip(docs, metas, dists):
+                    # Combine original metadata with collection name
+                    combined_meta = dict(meta) if meta else {}
+                    combined_meta["collection"] = coll.name
+                    doc = Document(page_content=doc_text, metadata=combined_meta)
+                    results_with_dist.append((doc, dist))
+        except Exception as e:
+            logger.warning("Error querying collection %s: %s", coll.name, e)
+
+    # Sort results if distances are available
+    results_with_dist.sort(key=lambda x: x[1])
+    return [x[0] for x in results_with_dist[:k]]
+
+
 
 
 def delete_collection(name: str) -> None:

@@ -136,8 +136,13 @@ def load_document(file_path: str) -> List[Document]:
                 documents.append(Document(page_content=clean_text, metadata=metadata))
 
         elif ext == ".md":
-            loader = UnstructuredMarkdownLoader(file_path)
-            loaded_docs = loader.load()
+            try:
+                loader = UnstructuredMarkdownLoader(file_path)
+                loaded_docs = loader.load()
+            except Exception as e:
+                logger.warning(f"UnstructuredMarkdownLoader failed, falling back to TextLoader: {e}")
+                loader = TextLoader(file_path, encoding="utf-8")
+                loaded_docs = loader.load()
             # Combine all documents into one single text content representation
             combined_text = "\n\n".join([d.page_content for d in loaded_docs]).strip()
             if len(combined_text) < 50:
@@ -146,6 +151,7 @@ def load_document(file_path: str) -> List[Document]:
             
             metadata = extract_metadata(file_path, 1, len(combined_text))
             documents.append(Document(page_content=combined_text, metadata=metadata))
+
 
     except Exception as e:
         logger.error(f"Error loading document {file_path}: {e}")
