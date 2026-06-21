@@ -27,6 +27,10 @@ dist/
 build/
 .eggs/
 
+# pip editable install artifacts
+__editable__*
+*.pth
+
 # Testing & coverage
 .pytest_cache/
 .coverage
@@ -71,8 +75,19 @@ chroma_db/
 *.ipynb
 
 # =============================================================================
+# Eval outputs  (keep the question dataset; ignore generated result files)
+# =============================================================================
+eval/results*.json
+eval/results/
+
+# =============================================================================
 # Docker runtime
 # =============================================================================
 # (Dockerfile and docker-compose.yml are kept — they describe infrastructure)
 # Ignore any runtime override files
 docker-compose.override.yml
+
+# =============================================================================
+# Temp / scratch
+# =============================================================================
+data/temp/

@@ -1,1 +1,14 @@
-/* Sample Questions and Answer Pairs for Evaluation  */
+[
+  {
+    "question": "What is the main topic of the uploaded document?",
+    "ground_truth": "Replace this with the actual expected answer based on your document."
+  },
+  {
+    "question": "Summarise the key findings in one sentence.",
+    "ground_truth": "Replace this with the actual expected answer based on your document."
+  },
+  {
+    "question": "What conclusion does the document reach?",
+    "ground_truth": "Replace this with the actual expected answer based on your document."
+  }
+]
