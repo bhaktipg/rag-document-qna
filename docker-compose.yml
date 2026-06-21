@@ -1,0 +1,78 @@
+version: "3.9"
+
+# ---------------------------------------------------------------------------
+# Networks
+# ---------------------------------------------------------------------------
+networks:
+  rag-net:
+    driver: bridge
+
+# ---------------------------------------------------------------------------
+# Persistent volumes
+# ---------------------------------------------------------------------------
+volumes:
+  chroma_data:      # ChromaDB embeddings survive container restarts
+  ollama_models:    # Ollama model weights survive container restarts
+
+# ---------------------------------------------------------------------------
+# Services
+# ---------------------------------------------------------------------------
+services:
+
+  # -------------------------------------------------------------------------
+  # Ollama – local LLM inference server
+  # Remove this service (and OLLAMA_HOST below) if you only use Groq.
+  # -------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag-ollama
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - rag-net
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+    # Pull the default model on first startup (no-op if already present)
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull ${OLLAMA_MODEL:-llama3.1:8b} && wait"]
+
+  # -------------------------------------------------------------------------
+  # RAG app – Streamlit frontend + backend
+  # -------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: rag-app
+    depends_on:
+      - ollama
+    networks:
+      - rag-net
+    ports:
+      - "8501:8501"
+    volumes:
+      # Mount ChromaDB so ingested vectors persist across restarts
+      - chroma_data:/app/chroma_db
+      # Mount data dir so you can drop files in without rebuilding
+      - ./data:/app/data
+    env_file:
+      - .env          # copy .env.example → .env and fill in your keys
+    environment:
+      # Override Ollama host to point at the sibling container
+      OLLAMA_HOST: "http://ollama:11434"
+      # These are fallback defaults; values in .env take precedence
+      CHROMA_PERSIST_DIR: "/app/chroma_db"
+      LLM_PROVIDER: "${LLM_PROVIDER:-ollama}"
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-llama3.1:8b}"
+      GROQ_MODEL: "${GROQ_MODEL:-llama-3.1-8b-instant}"
+      EMBEDDING_MODEL: "${EMBEDDING_MODEL:-all-MiniLM-L6-v2}"
+      TOP_K_RETRIEVAL: "${TOP_K_RETRIEVAL:-5}"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3

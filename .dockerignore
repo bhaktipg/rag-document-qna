@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+
+# Virtual environment – never copy into the image
+venv/
+.venv/
+
+# Local secrets
+.env
+
+# Data & generated runtime files – mounted as volumes instead
+data/*
+chroma_db/
+
+# Dev tooling
+.git/
+.gitignore
+.DS_Store
+*.md
+
+# Docker itself
+Dockerfile
+docker-compose*.yml
+.dockerignore
